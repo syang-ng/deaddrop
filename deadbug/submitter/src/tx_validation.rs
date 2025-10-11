@@ -32,9 +32,14 @@ pub fn setup_fork(
         anvil = anvil.block_time(bt);
     }
 
-    let anvil_instance = anvil.spawn();
+    anvil = anvil.port(28545u16);
 
-    let provider = Provider::<Http>::try_from(anvil_instance.endpoint())?.interval(Duration::from_millis(50));
+    let anvil_instance = anvil.spawn();
+    println!("🎯 Anvil fork started at: {}", anvil_instance.endpoint());
+
+    let provider = Provider::<Http>::try_from(anvil_instance.endpoint())
+        .map_err(|e| anyhow!("Failed to create provider: {}", e))?
+        .interval(Duration::from_millis(100));
 
     let chain_id = anvil_instance.chain_id();
 
@@ -71,6 +76,24 @@ async fn sum_balances_per_token(
     Ok(sums)
 }
 
+async fn check_rpc_health(upstream: &str) -> Result<()> {
+    let provider = Provider::<Http>::try_from(upstream)
+        .map_err(|e| anyhow!("Invalid RPC URL {}: {}", upstream, e))?;
+    
+    let net_version: String = provider.request("net_version", ())
+        .await
+        .map_err(|e| anyhow!("RPC network check failed: {}", e))?;
+    
+    let block_number: U64 = provider.request("eth_blockNumber", ())
+        .await
+        .map_err(|e| anyhow!("RPC block number check failed: {}", e))?;
+    
+    println!("✅ RPC connection healthy: network={}, block={}", net_version, block_number);
+    Ok(())
+}
+
+
+
 pub async fn validate_transaction(
     tx: &TxSpec,
     upstream: &str,
@@ -79,30 +102,43 @@ pub async fn validate_transaction(
     addresses: &[Address],
     tokens: &[Address],
 ) -> Result<bool> {
-    let (anvil_instance, provider, chain_id) = setup_fork(upstream, fork_block, block_time)?;
+
+    check_rpc_health(upstream).await?;
+
+    let (anvil_instance, provider, chain_id) = setup_fork(upstream, fork_block, block_time)
+        .map_err(|e| anyhow!("Failed to setup fork: {}", e))?;
+    
     let faucet_wallet = LocalWallet::from(anvil_instance.keys()[0].clone()).with_chain_id(chain_id);
     let client = SignerMiddleware::new(provider.clone(), faucet_wallet);
 
-    let pre = sum_balances_per_token(&provider, addresses, tokens).await?;
+    let pre = sum_balances_per_token(&provider, addresses, tokens)
+        .await
+        .map_err(|e| anyhow!("Failed to get pre-transaction balances: {}", e))?;
 
-    let _ok: bool = provider.request("anvil_impersonateAccount", [tx.from]).await?;
+    provider.request("anvil_impersonateAccount", [tx.from])
+        .await
+        .map_err(|e| anyhow!("Failed to impersonate account {}: {}", tx.from, e))?;
+
+    println!("Finished impersonating {}", tx.from);
     if tx.fund_eth > 0.0 {
-        client
+        let funding_tx = client
             .send_transaction(TransactionRequest::pay(tx.from, parse_ether(tx.fund_eth)?), None)
-            .await?
-            .await?
-            .ok_or_else(|| anyhow!("funding tx failed"))?;
+            .await
+            .map_err(|e| anyhow!("Failed to send funding transaction: {}", e))?;
+        
+        println!("Funding transaction sent: {:?}", funding_tx.tx_hash());
     }
 
-    // estimate gas price
-    let base_fee: U256 = provider.request("eth_gasPrice", ()).await?;
+    let base_fee: U256 = provider.request("eth_gasPrice", ())
+        .await
+        .map_err(|e| anyhow!("Failed to get gas price: {}", e))?;
+    
     let gas_price = if tx.gas_price < base_fee {
         base_fee
     } else {
         tx.gas_price
     };
 
-    // send transaction
     let req = TransactionRequest::new()
         .from(tx.from)
         .to(tx.to)
@@ -110,25 +146,39 @@ pub async fn validate_transaction(
         .data(tx.data.clone())
         .gas(tx.gas_limit)
         .gas_price(gas_price);
-    let tx_hash: H256 = client.provider().request("eth_sendTransaction", [req]).await?;
+        
+    let tx_hash: H256 = client.provider().request("eth_sendTransaction", [req])
+        .await
+        .map_err(|e| anyhow!("Failed to send transaction: {}", e))?;
+    
     let pending = PendingTransaction::new(tx_hash, client.provider());
+    
+    provider.request("anvil_mine", [1])
+        .await
+        .map_err(|e| anyhow!("Failed to mine block: {}", e))?;
+    println!("⛏️  Mined new block");
     let receipt = pending
-        .await?
-        .ok_or_else(|| anyhow!("no receipt (tx not mined)"))?;
+        .await
+        .map_err(|e| anyhow!("Transaction pending failed: {}", e))?
+        .ok_or_else(|| anyhow!("No receipt - transaction not mined"))?;
 
     if receipt.status != Some(1u64.into()) {
-        return Err(anyhow!("tx failed or reverted: {:?}", receipt));
+        return Err(anyhow!("Transaction failed or reverted: {:?}", receipt));
     }
     
-    let post = sum_balances_per_token(&provider, addresses, tokens).await?;
+    let post = sum_balances_per_token(&provider, addresses, tokens)
+        .await
+        .map_err(|e| anyhow!("Failed to get post-transaction balances: {}", e))?;
+    
     for token in tokens {
         let a = pre.get(token).cloned().unwrap_or_default();
         let b = post.get(token).cloned().unwrap_or_default();
-        if a < b {
+        if a > b {
             println!("❌ Token {:?} changed: before = {}, after = {}", token, a, b);
             return Ok(false);
         }
     }
+    
     println!("✅ All token balances unchanged");
     Ok(true)
 }
