@@ -74,7 +74,7 @@ pub fn decode_hex_to_bytes(hex: &str) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
-    use crate::pke::{decrypt_data, encrypt_data, key_gen};
+    use crate::pke::{decrypt_data, encrypt_data, generate_key_pair};
 
     use super::*;
 
@@ -114,7 +114,7 @@ mod tests {
         );
 
         // Step 3: generate PKE keypair
-        let (identity, recipient) = key_gen();
+        let (identity, recipient) = generate_key_pair();
 
         // Step 4: encrypt with public key
         let encrypted = encrypt_data(&serialized, &recipient);

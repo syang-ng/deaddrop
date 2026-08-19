@@ -10,4 +10,6 @@ services:
       BLOCK_NUM_FILE: test/block_num.txt 
       TEST_FILE: test/test_example.sol
       CONTRACT_ADDR_FILE: test/contract_addr.txt
+      INFURA_PROJECT_ID: ${INFURA_PROJECT_ID:-}
+      MAINNET_RPC_URL: ${MAINNET_RPC_URL:-}
     command: bash ./script.sh

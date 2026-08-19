@@ -1,10 +1,10 @@
 use deadbug_receiver::receiver::Receiver;
-use std::fs::File;
-use std::io::{self, Read, Write};
 use rust_omr::types::{
     decode_payloads, decode_pk_detect_from_hex, encode_payloads, encode_pk_detect_to_hex, OMRItem,
     Payload,
 };
+use std::fs::File;
+use std::io::Read;
 use submitter::submitter::Submitter;
 use utils::db::DBEntry;
 
@@ -28,7 +28,7 @@ pub fn main() {
 
     // Create a Submitter instance to generate the data for the BB
     let submitter = Submitter::new();
-    
+
     //---------------from file
     let bug_file = "../submitter/bug/bug_report.sol";
     let mut bug_file = File::open(bug_file).unwrap();
@@ -69,6 +69,7 @@ pub fn main() {
     let next_payload = receiver.get_next_decoded_payload().unwrap().unwrap();
 
     let (id, symmetric_key) = receiver.extract_info_from_decoded_payload(&next_payload);
+    println!("Recovered bug id: {id}");
 
     // Decrypt the bug report
     let encrypted_bug = db_entry.1;

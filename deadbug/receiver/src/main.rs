@@ -1,11 +1,11 @@
 use deadbug_receiver::receiver::Receiver;
-// ylitchev: for command line inputs
+// for command line inputs
 use dialoguer::{theme::ColorfulTheme, Input, Select};
-// ylitchev: to process payloads
-use rust_omr::types::{decode_payloads, encode_pk_detect_to_hex, Payload};
+// to process payloads
+use rust_omr::types::{decode_payloads, encode_pk_detect_to_hex};
 
-use log::{debug, error, info, trace, warn};
 use colored::*;
+use log::{debug, info, warn};
 
 fn main() {
     env_logger::init();
@@ -63,13 +63,16 @@ fn main() {
     }
 }
 
-// ylitchev: print out the stored detection key
+// print out the stored detection key
 fn handle_detection_key(receiver: &mut Receiver) {
     info!("Option 1 selected: Get detection key");
 
     let temp = receiver.public_key.pk_detect.clone();
     let pk_detect_hex = encode_pk_detect_to_hex(&temp);
-    info!("Detection key set to {}", pk_detect_hex.bold().magenta().to_string());
+    info!(
+        "Detection key set to {}",
+        pk_detect_hex.bold().magenta().to_string()
+    );
 }
 
 fn handle_print(receiver: &mut Receiver) {
@@ -78,13 +81,13 @@ fn handle_print(receiver: &mut Receiver) {
     receiver.post_info_for_submitters();
 }
 
-// ylitchev: given an input digest, decode it by calling the
+// given an input digest, decode it by calling the
 //           appropriate function in reciever.rs
 
-
-
 fn handle_decode_digest(receiver: &mut Receiver) {
-    let input_message = "Paste digest string (press Enter to leave empty)".bold().blue();
+    let input_message = "Paste digest string (press Enter to leave empty)"
+        .bold()
+        .blue();
 
     let digest_input: String = Input::new()
         .with_prompt(input_message.to_string())
@@ -103,10 +106,12 @@ fn handle_decode_digest(receiver: &mut Receiver) {
     let decoded_digest = decode_payloads(digest_input.as_str());
 
     // Decode the digest by calling the appropriate function from receiver.rs
-    receiver.decode_digest(&decoded_digest);
+    if let Err(error) = receiver.decode_digest(&decoded_digest) {
+        warn!("Failed to decode digest: {error}");
+    }
 }
 
-// ylitchev: Pop the most recent payload from the queue, process it
+// Pop the most recent payload from the queue, process it
 //           in order to receive an id and symmetric key. Wait for a
 //           ciphertext, when given, decrypt it
 fn handle_process_id(receiver: &mut Receiver) {
@@ -121,8 +126,7 @@ fn handle_process_id(receiver: &mut Receiver) {
                 let (id, symmetric_key) = receiver.extract_info_from_decoded_payload(&payload);
 
                 let colored_id = id.bold().magenta().to_string();
-
-                // info!("\nWe have an id=[{colored_id}]");
+                info!("Retrieved bug id: {colored_id}");
 
                 // Request a ciphertext from user input
                 let ciphertext: String = Input::new()
@@ -136,7 +140,10 @@ fn handle_process_id(receiver: &mut Receiver) {
                 let plaintext = receiver.decrypt_bug_report(&ciphertext, symmetric_key);
 
                 let colored_plaintext = String::from_utf8(plaintext)
-                        .unwrap_or_else(|_| "Failed to convert decrypted report to string".to_string()).bold().magenta().to_string();
+                    .unwrap_or_else(|_| "Failed to convert decrypted report to string".to_string())
+                    .bold()
+                    .magenta()
+                    .to_string();
                 println!("Decrypted Bug Report: {}", colored_plaintext);
             } else {
                 warn!("Nothing was popped from queue!");
@@ -147,16 +154,4 @@ fn handle_process_id(receiver: &mut Receiver) {
             return; // Exit if there's an error
         }
     }
-}
-
-// ylitchev: Dummy template function to handle command-line inputs
-/// Helper: prompt for arbitrary user input, then echo it with a custom banner.
-fn handle_option(banner: &str) {
-    println!("\n{banner}");
-    let input: String = Input::new()
-        .with_prompt("Enter anything and press Enter")
-        .interact_text()
-        .expect("failed to read line");
-
-    println!("You typed: {input}\n");
 }

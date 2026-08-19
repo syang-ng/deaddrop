@@ -30,8 +30,19 @@ impl EncKeys {
         // Generate keys for encryption
         let (sk, pk) = key_gen();
 
-        // Call keygen from utils
-        EncKeys { pk_enc: pk, sk_enc: sk }
+        Self::from_key_pair(sk, pk)
+    }
+
+    pub fn generate_ephemeral() -> Self {
+        let (sk, pk) = generate_key_pair();
+        Self::from_key_pair(sk, pk)
+    }
+
+    fn from_key_pair(sk: EncPrivateKey, pk: EncPublicKey) -> Self {
+        EncKeys {
+            pk_enc: pk,
+            sk_enc: sk,
+        }
     }
 
     pub fn decrypt(&self, encrypted_data: &[u8]) -> Vec<u8> {

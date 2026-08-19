@@ -6,6 +6,15 @@ block_num="$2"
 bug="$3"
 inv="$4"
 
+if [[ -z "${MAINNET_RPC_URL:-}" ]]; then
+  if [[ -z "${INFURA_PROJECT_ID:-}" ]]; then
+    echo "error: set MAINNET_RPC_URL or INFURA_PROJECT_ID" >&2
+    exit 64
+  fi
+  MAINNET_RPC_URL="https://mainnet.infura.io/v3/${INFURA_PROJECT_ID}"
+fi
+export MAINNET_RPC_URL
+
 mkdir -p bin
 
 forge init --no-git bin/bug-verify &> /dev/null
@@ -20,7 +29,6 @@ cd bin/bug-verify
 
 (
   export TARGET="$addr"
-  export MAINNET_RPC_URL="https://mainnet.infura.io/v3/27ce2d06142643c28dc2d477400fd430"
   export block_num=$block_num
 
   JSON_OUT="$(forge test test/inv/* \

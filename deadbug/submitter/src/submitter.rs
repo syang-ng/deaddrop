@@ -1,21 +1,17 @@
 use rust_omr;
 use rust_omr::submitter::gen_clue;
-use rust_omr::types::{Clue, OMRItem, PKClue, Payload, PublicKey, PublicParams, SecretKey};
-use utils::db::DBEntry;
-// Add this line to import the utils module
-use std::io;
+use rust_omr::types::{Clue, OMRItem, PKClue, Payload, PublicParams};
 use std::process::Command;
 use utils::aes::encrypt;
-use utils::hashing::hash_to_bytes;
+use utils::db::DBEntry;
 use utils::hashing::hash_to_string;
 use utils::pke::EncPublicKey;
 use utils::{self, serialize_omr_payload};
-use utils::db::SubmittedData;
 pub struct Submitter {
     public_params: PublicParams,
 }
 
-fn check_bug(bug: &[u8]) -> bool {
+fn check_bug(_bug: &[u8]) -> bool {
     // Dummy check for bug correctness
     // In a real scenario, this would involve checking a database or some other source
     true
@@ -33,7 +29,12 @@ pub fn check_bug_impl(
     bug_filepath: &str,
     inv_filepath: &str,
 ) -> bool {
-    let output = Command::new("./src/run_test.sh")
+    // Resolve the bundled verifier relative to this crate, not the caller's
+    // current directory. This keeps both `cargo run -p submitter` from the
+    // workspace root and the historical `/app/submitter` Docker entrypoint
+    // working.
+    let run_test = concat!(env!("CARGO_MANIFEST_DIR"), "/src/run_test.sh");
+    let output = Command::new(run_test)
         .arg(contract_addr)
         .arg(block_num.to_string())
         .arg(bug_filepath)
@@ -92,7 +93,6 @@ impl Submitter {
 
         let pke_encryption = utils::pke::encrypt_data(&pke_input, pk);
         let payload: Payload = pke_encryption.clone();
-        // Generate the clue using the public parameters, the clue key and the payload
         let clue: Clue = gen_clue(&self.public_params, clue_key.clone(), &payload);
 
         // Now onto the items we'll put into the DB
@@ -100,8 +100,6 @@ impl Submitter {
         let encrypted_bug = encrypt(&bug, symmetric_key_arr, iv_arr);
         // The DB entry will contain a mapping from the "id_string" i.e. H(symmetric key || iv)
         // to the encrypted bug under this symmetric key and iv.
-
-        let encrypted_bug_hex = utils::aes::encode_bytes_to_hex(&encrypted_bug);
 
         ((clue, payload), (id_string, encrypted_bug))
     }

@@ -1,14 +1,18 @@
 use std::collections::VecDeque;
 
 use rust_omr::receiver::decode;
-use rust_omr::setup::{gen_param, keygen};
+use rust_omr::setup::gen_param;
+#[cfg(test)]
+use rust_omr::setup::generate_key_pair;
+#[cfg(not(test))]
+use rust_omr::setup::keygen;
 use rust_omr::types::{encode_pk_clue_to_hex, Payload, PublicKey, PublicParams, SecretKey};
 
 use crate::types::{BugInfo, BugMetadata, BugStatus, EncKeys, ReceiverError};
 
 use utils::deserialize_omr_payload;
 
-use log::{debug, error, info, trace, warn};
+use log::{error, info, warn};
 
 use colored::*;
 
@@ -26,7 +30,10 @@ impl Receiver {
     // Constructor for the receiver
     pub fn new() -> Self {
         let pp: PublicParams = gen_param(128, 0.1, 0.1);
+        #[cfg(not(test))]
         let (sk, pk) = keygen(&pp);
+        #[cfg(test)]
+        let (sk, pk) = generate_key_pair(&pp);
 
         let bug_info = BugInfo {
             addr: "0xBB9bc244D798123fDe783fCc1C72d3Bb8C189413".to_string(),
@@ -77,10 +84,14 @@ contract DAOTest is Test, BugReport {
         uint256 supply = DAO(targetAddr).totalSupply();
         assertGt(supply, 0);
     }
-}"#.to_string(),
+}"#
+            .to_string(),
         };
 
+        #[cfg(not(test))]
         let enc_keys = EncKeys::key_gen();
+        #[cfg(test)]
+        let enc_keys = EncKeys::generate_ephemeral();
 
         let decoded_payloads = VecDeque::new();
 
@@ -106,7 +117,10 @@ contract DAOTest is Test, BugReport {
         let enc_pk_str = enc_key.to_string();
 
         info!("Encryption Key: {}", enc_pk_str.bold().magenta());
-        info!("Clue Key: {}", encode_pk_clue_to_hex(&clue_key).bold().magenta());
+        info!(
+            "Clue Key: {}",
+            encode_pk_clue_to_hex(&clue_key).bold().magenta()
+        );
     }
 
     pub fn decode_digest(&mut self, digest: &Vec<Payload>) -> Result<(), ReceiverError> {
@@ -119,8 +133,13 @@ contract DAOTest is Test, BugReport {
                     self.decoded_paylods_queue.push_back(payload.to_vec());
                 }
 
-    
-                info!("{}", ("Decoded Payloads added to the internal queue!".bold().green()).to_string());
+                info!(
+                    "{}",
+                    ("Decoded Payloads added to the internal queue!"
+                        .bold()
+                        .green())
+                    .to_string()
+                );
                 Ok(())
             }
             _ => {
@@ -253,7 +272,7 @@ mod tests {
         // Create a Submitter instance to generate the data for the BB
         let submitter = Submitter::new();
         let bug = b"Test bug report".to_vec();
-        let (omr_item, db_entry): (OMRItem, DBEntry) = submitter.submit_bug(
+        let (omr_item, _db_entry): (OMRItem, DBEntry) = submitter.submit_bug(
             &receiver.enc_keys.pk_enc,
             &receiver.public_key.pk_clue,
             &bug,
@@ -289,7 +308,7 @@ mod tests {
         // Create a Submitter instance to generate the data for the BB
         let submitter = Submitter::new();
         let bug = b"Test bug report".to_vec();
-        let (omr_item, db_entry): (OMRItem, DBEntry) = submitter.submit_bug(
+        let (omr_item, _db_entry): (OMRItem, DBEntry) = submitter.submit_bug(
             &receiver.enc_keys.pk_enc,
             &receiver.public_key.pk_clue,
             &bug,

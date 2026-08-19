@@ -1,6 +1,7 @@
-use crate::types::Clue;
-
 pub mod bb;
+
+pub mod http_client;
+pub mod protocol;
 
 pub mod detector;
 pub mod receiver;
@@ -12,14 +13,14 @@ pub mod types;
 fn test_end_to_end() {
     use crate::detector::detect;
     use crate::receiver::decode;
-    use crate::setup::{gen_param, keygen};
-    use crate::types::{DecodeResult, Payload, PublicKey, PublicParams, SecretKey};
+    use crate::setup::{gen_param, generate_key_pair};
+    use crate::types::{Clue, DecodeResult, Payload, PublicKey, PublicParams, SecretKey};
 
     // Generate public parameters
     let pp: PublicParams = gen_param(128, 0.1, 0.1);
 
     // Key generation
-    let (sk, pk): (SecretKey, PublicKey) = keygen(&pp);
+    let (sk, pk): (SecretKey, PublicKey) = generate_key_pair(&pp);
 
     // Simulate submission of payloads
     let payloads: Vec<Payload> = vec![vec![3u8; 32], vec![4u8; 32]];

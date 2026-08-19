@@ -1,8 +1,22 @@
 ## Bug Submission
 
+The no-feature compatibility backend creates its AGE and mock-OMR key files
+atomically on first use and shares them with the legacy receiver. The generated
+mode-`0600` files are ignored by Git. Set `DEADDROP_LEGACY_AGE_KEYS_FILE` and
+`DEADDROP_LEGACY_OMR_KEYS_FILE` to explicit shared paths when submitter and
+receiver use different working directories.
+
 ### Foundry Test
 
 Test the contract with foundry.
+
+Provide an Ethereum mainnet RPC through either environment variable:
+
+```bash
+export INFURA_PROJECT_ID="your-project-id"
+# Or use any Ethereum RPC provider:
+export MAINNET_RPC_URL="https://your-mainnet-rpc.example"
+```
 
 ### Outside Market Validation
 

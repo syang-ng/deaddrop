@@ -50,3 +50,13 @@ __pycache__
 deadbug/target
 deadbug/rust_omr/target
 deadbug/Cargo.lock
+/deadbug/build/
+/validator/target/
+
+# Generated local keys and run-specific submission/attestation output
+/funkeys*.txt
+/deadbug/funkeys*.txt
+/funkeys*.tmp-*
+/deadbug/funkeys*.tmp-*
+/submitted_data.json
+/deadbug/detector/src/submitted_data.json
