@@ -156,7 +156,7 @@ async fn run_validation_mode(args: &ValidationArgs) -> Result<(), Box<dyn Error>
         from,
         to,
         value,
-        data: data.into(),
+        data: data.clone(),
         gas_limit: args.gas_limit.unwrap_or(1_000_000), // Default to 1M
         gas_price: U256::from(args.gas_price.unwrap_or(1_000_000_000u64)), // Default to 1 Gwei
         fund_eth: 0.01,                                 // Fund with 0.01 ETH for gas
@@ -185,26 +185,21 @@ async fn run_validation_mode(args: &ValidationArgs) -> Result<(), Box<dyn Error>
     if same {
         println!("❌ Transaction does not violate invariants.");
     } else {
-        let bug = data_bytes.as_bytes(); // Assuming the bug is represented by the transaction data
-        submit_bug(bug);
+        submit_bug(data.as_ref());
     }
 
     Ok(())
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
 
     // If no subcommand is provided, default to Foundry mode.
     let command = cli.command.unwrap_or(Commands::Foundry);
 
-    let result = match command {
+    match command {
         Commands::Foundry => run_foundry_mode(),
         Commands::Validation(args) => run_validation_mode(&args).await,
-    };
-
-    if let Err(e) = result {
-        eprintln!("❌ Application error: {}", e);
     }
 }

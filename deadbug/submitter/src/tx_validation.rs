@@ -21,17 +21,12 @@ pub struct TxSpec {
 pub fn setup_fork(
     upstream: &str,
     fork_block: Option<u64>,
-    block_time: Option<u64>,
 ) -> Result<(AnvilInstance, Provider<Http>, u64)> {
 
     let mut anvil = Anvil::new().fork(upstream);
     if let Some(block_num) = fork_block {
         anvil = anvil.fork_block_number(block_num);
     }
-    if let Some(bt) = block_time {
-        anvil = anvil.block_time(bt);
-    }
-
     anvil = anvil.port(28545u16);
 
     let anvil_instance = anvil.spawn();
@@ -98,35 +93,43 @@ pub async fn validate_transaction(
     tx: &TxSpec,
     upstream: &str,
     fork_block: Option<u64>,
-    block_time: Option<u64>,
+    block_timestamp: Option<u64>,
     addresses: &[Address],
     tokens: &[Address],
 ) -> Result<bool> {
 
     check_rpc_health(upstream).await?;
 
-    let (anvil_instance, provider, chain_id) = setup_fork(upstream, fork_block, block_time)
+    let (_anvil_instance, provider, _chain_id) = setup_fork(upstream, fork_block)
         .map_err(|e| anyhow!("Failed to setup fork: {}", e))?;
-    
-    let faucet_wallet = LocalWallet::from(anvil_instance.keys()[0].clone()).with_chain_id(chain_id);
-    let client = SignerMiddleware::new(provider.clone(), faucet_wallet);
 
     let pre = sum_balances_per_token(&provider, addresses, tokens)
         .await
         .map_err(|e| anyhow!("Failed to get pre-transaction balances: {}", e))?;
 
-    provider.request("anvil_impersonateAccount", [tx.from])
+    let _: () = provider.request("anvil_impersonateAccount", [tx.from])
         .await
         .map_err(|e| anyhow!("Failed to impersonate account {}: {}", tx.from, e))?;
 
     println!("Finished impersonating {}", tx.from);
     if tx.fund_eth > 0.0 {
-        let funding_tx = client
-            .send_transaction(TransactionRequest::pay(tx.from, parse_ether(tx.fund_eth)?), None)
+        let current_balance = provider
+            .get_balance(tx.from, None)
             .await
-            .map_err(|e| anyhow!("Failed to send funding transaction: {}", e))?;
-        
-        println!("Funding transaction sent: {:?}", funding_tx.tx_hash());
+            .map_err(|e| anyhow!("Failed to get sender balance: {}", e))?;
+        let funded_balance = current_balance.saturating_add(parse_ether(tx.fund_eth)?);
+        let _: () = provider
+            .request("anvil_setBalance", (tx.from, funded_balance))
+            .await
+            .map_err(|e| anyhow!("Failed to fund sender account: {}", e))?;
+
+        println!("Funded sender {} without mining a block", tx.from);
+    }
+
+    if let Some(timestamp) = block_timestamp {
+        let _: () = provider.request("evm_setNextBlockTimestamp", [timestamp])
+            .await
+            .map_err(|e| anyhow!("Failed to set next block timestamp: {}", e))?;
     }
 
     let base_fee: U256 = provider.request("eth_gasPrice", ())
@@ -147,16 +150,11 @@ pub async fn validate_transaction(
         .gas(tx.gas_limit)
         .gas_price(gas_price);
         
-    let tx_hash: H256 = client.provider().request("eth_sendTransaction", [req])
+    let tx_hash: H256 = provider.request("eth_sendTransaction", [req])
         .await
         .map_err(|e| anyhow!("Failed to send transaction: {}", e))?;
     
-    let pending = PendingTransaction::new(tx_hash, client.provider());
-    
-    provider.request("anvil_mine", [1])
-        .await
-        .map_err(|e| anyhow!("Failed to mine block: {}", e))?;
-    println!("⛏️  Mined new block");
+    let pending = PendingTransaction::new(tx_hash, &provider);
     let receipt = pending
         .await
         .map_err(|e| anyhow!("Transaction pending failed: {}", e))?
