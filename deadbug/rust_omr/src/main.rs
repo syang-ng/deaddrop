@@ -20,7 +20,8 @@ fn flush() {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     use rust_omr::http_client::{
-        decode_digest, gen_clue, gen_encrypted_digest, init_deaddrop, submit_clue,
+        decode_digest, digest_to_indices, gen_clue, gen_encrypted_digest, init_deaddrop,
+        submit_clue,
     };
 
     let host = env::var("OMR_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
@@ -101,11 +102,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("    decoded_digest length: {}", digest.len());
     flush();
 
-    let pertinent_indices: Vec<u64> = digest
-        .iter()
-        .enumerate()
-        .filter_map(|(i, &value)| (value != 0).then_some(i as u64))
-        .collect();
+    let pertinent_indices = digest_to_indices(&digest)?;
     println!("Pertinent indices: {pertinent_indices:?}");
     flush();
 
