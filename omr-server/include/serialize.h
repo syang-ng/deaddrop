@@ -280,10 +280,11 @@ inline seal::Ciphertext DeserializeDigest(std::string_view bytes)
 }
 
 // for submit clue
+// Throws std::invalid_argument on a malformed index. Returning a default index here would store the
+// clue in slot 0 and overwrite whatever was there.
 int DeserializeIndex(std::string_view bytes) {
     if (bytes.size() != 4) {
-        // Handle error - wrong size
-        return 0;
+        throw std::invalid_argument("DeserializeIndex: expected 4 bytes, got " + std::to_string(bytes.size()));
     }
     int value;
     memcpy(&value, bytes.data(), sizeof(int));

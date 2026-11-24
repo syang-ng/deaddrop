@@ -136,8 +136,6 @@ int main()
             auto params = srPKEParam();
             srPKECiphertext clue = DeserializeClue(clue_bin, params.q);
             int idx = DeserializeIndex(idx_bin);
-            
-            submit_clue(clue, idx);
 
             if (submit_clue(clue, idx)) {
                 res.status = 200;
@@ -146,6 +144,10 @@ int main()
                 res.status = 500;
                 res.set_content("Submit failed", "text/plain");  // Failure response
             }
+        } catch (const std::invalid_argument &e) {
+            // Malformed index, index outside the scanned range, or clue of the wrong shape
+            std::string msg = std::string("ERR: ") + e.what();
+            res.status = 400; res.set_content(msg, "text/plain");
         } catch (const std::exception &e) {
             std::string msg = std::string("ERR: ") + e.what();
             res.status = 500; res.set_content(msg, "text/plain");

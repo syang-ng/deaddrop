@@ -21,7 +21,11 @@ int bfv_Q = 65537;
 
 // 19 for perfomr default param set, 81 for dos omr
 int range_check_r = 19;
-int range_check_r_dos = 80;
+// The DoS range check accepts |x| <= range_check_r_dos - 1. With the srPKE parameters in
+// regevEncryption.h (n1 = 936, n2 = 760, sigma = 0.5, ell = 3) the per-clue false-negative rate,
+// averaged over receiver keys, is about 2^-22 for |x| <= 79 and falls below 2^-30 only from
+// |x| <= 93, hence 94.
+int range_check_r_dos = 94;
 
 int step_size_glb = 32; // used for oblivious expansion
 

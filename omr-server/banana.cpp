@@ -33,7 +33,11 @@ int main(int argc, char *argv[])
               << " ms\n";
 
     start = std::chrono::high_resolution_clock::now();
-    submit_clue(clue, 50000);
+    // The index must be inside the scanned range [0, ddctx::num_transactions).
+    if (!submit_clue(clue, 5000)) {
+        std::cerr << "submit_clue failed\n";
+        return 1;
+    }
     std::cout << "submit_clue: "
               << std::chrono::duration_cast<std::chrono::milliseconds>(
                      std::chrono::high_resolution_clock::now() - start).count()

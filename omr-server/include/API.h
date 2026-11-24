@@ -8,13 +8,40 @@
 
 #include <memory>
 #include <cassert>
+#include <stdexcept>
 
 #include <chrono>
 
 // --- Global, single source of truth for SEAL context ---
 namespace ddctx {
+    // Number of clue slots in the database. Must be a multiple of the BFV ring degree (32768).
+    inline constexpr int num_transactions = 32768;
+
     inline bool ready = false;
     inline std::shared_ptr<seal::SEALContext> g_ctx;
+
+    // Evaluation keys the detector needs for gen_encrypted_digest(). They are derived from
+    // sk_decode, so init_deaddrop() makes them with the receiver's key generator and stores them
+    // here. In a deployment they are part of the detection key the receiver sends to the detector.
+    inline std::shared_ptr<seal::RelinKeys> g_relin_keys;
+    inline std::shared_ptr<seal::GaloisKeys> g_gal_keys;
+
+    inline void set_eval_keys(seal::RelinKeys relin_keys, seal::GaloisKeys gal_keys) {
+        g_relin_keys = std::make_shared<seal::RelinKeys>(std::move(relin_keys));
+        g_gal_keys = std::make_shared<seal::GaloisKeys>(std::move(gal_keys));
+    }
+
+    inline const seal::RelinKeys& relin_keys() {
+        if (!g_relin_keys)
+            throw std::runtime_error("ddctx: evaluation keys not initialized; call init_deaddrop() first");
+        return *g_relin_keys;
+    }
+
+    inline const seal::GaloisKeys& gal_keys() {
+        if (!g_gal_keys)
+            throw std::runtime_error("ddctx: evaluation keys not initialized; call init_deaddrop() first");
+        return *g_gal_keys;
+    }
 
     // Store a single process-wide context
     inline void set(const seal::SEALContext& ctx) {
@@ -46,7 +73,7 @@ std::tuple<SecretKey, srPKEpk, vector<Ciphertext>> init_deaddrop()
     auto pk_clue = srPKEGeneratePublicKey(params, sk);
 
     // Create clueDB
-    int numOfTransactions = 32768;
+    int numOfTransactions = ddctx::num_transactions;
     int num_of_pertinent_msgs = 0;
     int party_size_local = 1;
     vector<int> pertinentMsgIndices;
@@ -67,13 +94,9 @@ std::tuple<SecretKey, srPKEpk, vector<Ciphertext>> init_deaddrop()
     // parms.set_coeff_modulus(CoeffModulus::BFVDefault(poly_modulus_degree));
     parms.set_coeff_modulus(coeff_modulus);
     parms.set_plain_modulus(t);
-    prng_seed_type seed;
-    for (auto &i : seed)
-    {
-        i = random_uint64();
-    }
-    auto rng = make_shared<Blake2xbPRNGFactory>(Blake2xbPRNGFactory(seed));
-    parms.set_random_generator(rng);
+    // No parms.set_random_generator() here. A seeded factory hands every sampler the same stream,
+    // so every key and every encryption would reuse the same randomness. SEAL's default factory
+    // draws a fresh seed for each sampler.
 
     SEALContext context(parms, true, sec_level_type::none);
     KeyGenerator keygen(context);
@@ -81,11 +104,21 @@ std::tuple<SecretKey, srPKEpk, vector<Ciphertext>> init_deaddrop()
     PublicKey public_key;
     keygen.create_public_key(public_key);
 
+    // Evaluation keys for the detector. They must come from this key generator: a second
+    // KeyGenerator(context) would hold an unrelated secret key, and a digest computed with its
+    // keys would not decrypt under sk_decode.
+    RelinKeys relin_keys;
+    keygen.create_relin_keys(relin_keys);
+    GaloisKeys gal_keys;
+    vector<int> stepsfirst = {1};
+    keygen.create_galois_keys(stepsfirst, gal_keys);
+
     // Create pk_detect
     vector<Ciphertext> pk_detect = omr_dos::generateDetectionKey(context, poly_modulus_degree, public_key,
                                                                  sk_decode, sk, params);
 
     ddctx::set(context);
+    ddctx::set_eval_keys(std::move(relin_keys), std::move(gal_keys));
 
     return std::make_tuple(sk_decode, pk_clue, pk_detect);
 }
@@ -103,21 +136,18 @@ srPKECiphertext gen_clue(const srPKEpk &pk_clue)
 // Generates encrypted digest over the whole DB
 Ciphertext gen_encrypted_digest(const vector<Ciphertext> &pk_detect)
 {
-    auto numOfTransactions = 32768;
+    auto numOfTransactions = ddctx::num_transactions;
     auto numcores = 1;
     auto poly_modulus_degree = ddctx::parms().poly_modulus_degree();
     auto params = srPKEParam();
 
     const auto& context = ddctx::ctx();
     Evaluator evaluator(context);
-    KeyGenerator keygen(context);
     BatchEncoder batch_encoder(context);
 
-    RelinKeys relin_keys;
-    keygen.create_relin_keys(relin_keys);
-    GaloisKeys gal_keys;
-    vector<int> stepsfirst = {1};
-    keygen.create_galois_keys(stepsfirst, gal_keys);
+    // Made in init_deaddrop() from the key generator that holds sk_decode.
+    const RelinKeys &relin_keys = ddctx::relin_keys();
+    const GaloisKeys &gal_keys = ddctx::gal_keys();
 
     vector<int> counter(numcores);
     vector<vector<srPKECiphertext>> SICPVW_multicore(numcores);
@@ -258,8 +288,21 @@ vector<uint64_t> decode_digest(const Ciphertext &encrypted_digest, const SecretK
     return decoded_digest;
 }
 
-// Submits clue to index i in clueDB
+// Submits clue to index i in clueDB.
+// Throws std::invalid_argument if the index is outside the scanned range or the clue has the wrong
+// shape; returns false if the clue could not be stored.
 bool submit_clue(const srPKECiphertext &clue, int index) {
+    auto params = srPKEParam();
+    if (index < 0 || index >= ddctx::num_transactions) {
+        throw std::invalid_argument("submit_clue: index " + std::to_string(index) + " is outside [0, " +
+                                    std::to_string(ddctx::num_transactions) + ")");
+    }
+    if (clue.a.GetLength() != static_cast<size_t>(params.n1) ||
+        clue.b.GetLength() != static_cast<size_t>(params.ell)) {
+        throw std::invalid_argument("submit_clue: clue has " + std::to_string(clue.a.GetLength()) + " + " +
+                                    std::to_string(clue.b.GetLength()) + " entries, expected " +
+                                    std::to_string(params.n1) + " + " + std::to_string(params.ell));
+    }
     try {
         saveClues_dos(clue, index);
         return true;  // Success

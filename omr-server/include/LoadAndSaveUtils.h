@@ -4,6 +4,7 @@
 #include<iostream>
 #include<fstream>
 #include<string>
+#include<stdexcept>
 #include "MRE.h"
 #include "scheme.h"
 #include "MathUtil.h"
@@ -378,9 +379,15 @@ void saveClues_OPVE(const OPVWCiphertext& clue, int transaction_num){
     datafile.close();
 }
 
+// Throws std::runtime_error if the clue file cannot be opened or fully written, so a clue is never
+// reported as stored when it is not.
 void saveClues_dos(const srPKECiphertext& clue, int transaction_num){
+    const string path = "../data/clues/"+to_string(transaction_num)+".txt";
     ofstream datafile;
-    datafile.open ("../data/clues/"+to_string(transaction_num)+".txt");
+    datafile.open (path);
+    if (!datafile.is_open()) {
+        throw std::runtime_error("saveClues_dos: cannot open " + path + " for writing");
+    }
 
     for (size_t i = 0; i < clue.a.GetLength(); i++) {
         datafile << clue.a[i].ConvertToInt() << "\n";
@@ -390,6 +397,9 @@ void saveClues_dos(const srPKECiphertext& clue, int transaction_num){
     }
 
     datafile.close();
+    if (datafile.fail()) {
+        throw std::runtime_error("saveClues_dos: write to " + path + " failed");
+    }
 }
 
 
@@ -408,24 +418,35 @@ void saveClues_opt_attack(const OPVWParam& param, int transaction_num){
 }
 
 
+// Throws std::runtime_error if a clue file is missing, truncated or malformed. A failed read leaves
+// the target of operator>> unset, so without these checks the detector would scan arbitrary values
+// in place of the clue.
 void loadClues_dos(vector<srPKECiphertext>& clues, const int& start, const int& end, const srPKEParam& param, int party_ind = 0, int partySize = 1) {
     clues.resize(end-start);
     for(int i = start; i < end; i++){
         clues[i-start].a = NativeVector(param.n1);
         clues[i-start].b = NativeVector(param.ell);
 
+        const string path = "../data/clues/"+to_string(i * partySize + party_ind)+".txt";
         ifstream datafile;
-        datafile.open ("../data/clues/"+to_string(i * partySize + party_ind)+".txt");
+        datafile.open (path);
+        if (!datafile.is_open()) {
+            throw std::runtime_error("loadClues_dos: cannot open " + path);
+        }
 
         for(int j = 0; j < param.n1; j++){
-            uint64_t temp;
-            datafile >> temp;
+            uint64_t temp = 0;
+            if (!(datafile >> temp)) {
+                throw std::runtime_error("loadClues_dos: " + path + " is truncated or malformed");
+            }
             clues[i-start].a[j] = temp;
         }
 
         for(int j = 0; j < param.ell; j++){
-            uint64_t temp;
-            datafile >> temp;
+            uint64_t temp = 0;
+            if (!(datafile >> temp)) {
+                throw std::runtime_error("loadClues_dos: " + path + " is truncated or malformed");
+            }
             clues[i-start].b[j] = temp;
         }
     }
