@@ -10,8 +10,8 @@ detects and decrypts reports intended for it.
 
 This repository is the anonymized artifact prepared for open-science review. It
 contains the Rust prototype, two validation paths, a local web interface, test
-fixtures, and an HTTP client for an external oblivious-message-retrieval (OMR)
-service. Generated keys, attestations, submitted reports, build products, and
+fixtures, an HTTP client for an oblivious-message-retrieval (OMR) service, and a
+source snapshot of that service in `omr-server/`. Generated keys, attestations, submitted reports, build products, and
 author-identifying metadata are intentionally excluded from the artifact tree.
 
 ### Artifact scope
@@ -23,7 +23,7 @@ author-identifying metadata are intentionally excluded from the artifact tree.
 | Transaction-replay validation | `submitter validation` | Anvil and an Ethereum archive RPC |
 | Encrypted report packaging | `submitter` after a detected violation | Python, `dstack-sdk`, and a Tappd/TDX socket |
 | Local receiver/detector demonstration | `receiver` and `deadbug_detector` | No external OMR service |
-| OMR HTTP protocol and timing client | `rust_omr` binary | A compatible OMR server on a trusted host |
+| OMR HTTP protocol and timing client | `rust_omr` binary | The OMR server from `omr-server/`, built separately and running on a trusted host |
 | Local bulletin-board UI | Flask application in `frontend/` | Python, Flask, and Flask-SQLAlchemy |
 
 The application-facing OMR modules currently form a compatibility prototype
@@ -46,6 +46,7 @@ deadbug/
   server/      Minimal server placeholder
 frontend/      Local Flask bulletin-board interface
 validator/     Standalone Foundry validator fixture
+omr-server/    C++ OMR server source snapshot (see omr-server/VENDORED.md)
 ```
 
 ## Reproducing the artifact
@@ -167,8 +168,10 @@ of the external OMR construction.
 
 ### 5. External OMR protocol client
 
-With a compatible OMR HTTP server already running, the imported timing driver
-can exercise its five endpoints:
+The server source is in `omr-server/`; it is not built by the Rust workspace or
+the Dockerfile. `omr-server/README.md` lists its dependencies and build steps,
+and the HTTP server is the `http_server` target. With that server already
+running, the imported timing driver can exercise its five endpoints:
 
 ```bash
 cd deadbug
