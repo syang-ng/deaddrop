@@ -1,0 +1,11 @@
+--- a/OMRdos.h
++++ b/OMRdos.h
+@@ -566,6 +566,8 @@
+ 	/* cout << "EXPECTED -------------------------------------------------------- \n" << expected[0] << endl; */
+ 	/* cout << "RESULT ---------------------------------------------------------- \n" << res[0] << endl; */
+ 
++	cout << "Receiver decoding time: " << time_diff.count() << " us." << endl;
++
+ 	if(checkRes(expected, res))
+ 		cout << "Result is correct!" << endl;
+ 	else

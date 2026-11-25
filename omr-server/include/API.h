@@ -15,7 +15,11 @@
 // --- Global, single source of truth for SEAL context ---
 namespace ddctx {
     // Number of clue slots in the database. Must be a multiple of the BFV ring degree (32768).
-    inline constexpr int num_transactions = 32768;
+    // Builds may override it with -DDEADDROP_NUM_TRANSACTIONS=<n>; the default is unchanged.
+#ifndef DEADDROP_NUM_TRANSACTIONS
+#define DEADDROP_NUM_TRANSACTIONS 32768
+#endif
+    inline constexpr int num_transactions = DEADDROP_NUM_TRANSACTIONS;
 
     inline bool ready = false;
     inline std::shared_ptr<seal::SEALContext> g_ctx;

@@ -1,0 +1,27 @@
+[package]
+name = "tag_scan"
+version = "0.1.0"
+edition = "2021"
+description = "Recipient-private Local Tag Scan baseline (X25519 + HKDF-SHA256 + HMAC-SHA256) for experiment E2"
+publish = false
+
+# Standalone crate, not part of the deadbug workspace.
+[workspace]
+
+[dependencies]
+x25519-dalek = { version = "3.0.0", features = ["static_secrets", "getrandom"] }
+hkdf = "0.12.4"
+hmac = "0.12.1"
+sha2 = "0.10.9"
+subtle = "2.6.1"
+libc = "0.2"
+# ML-KEM-512/768 and a second X25519 implementation (AWS-LC), for the post-quantum tag baseline.
+aws-lc-rs = "1.18.1"
+
+[[bin]]
+name = "tagscan"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 3
+codegen-units = 1

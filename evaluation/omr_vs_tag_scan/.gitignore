@@ -1,0 +1,4 @@
+# Large or machine-specific outputs: clue boards, keys, builds.
+work/
+tag_scan/target/
+omr_bench/build-*/
