@@ -1,0 +1,18 @@
+services:
+  validator:
+    image: deaddrop-validation:local
+    pull_policy: never
+    platform: linux/amd64
+    cpus: 2
+    mem_limit: 1g
+    command: ["serve", "--mode", "mock"]
+    environment:
+      DEADDROP_RECIPIENT: "${DEADDROP_RECIPIENT:?set a native age X25519 recipient}"
+    ports:
+      - "127.0.0.1:8080:8080"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=256m
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    init: true

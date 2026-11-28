@@ -1,0 +1,17 @@
+**
+!Cargo.toml
+!Cargo.lock
+!src
+!src/main.rs
+!tee
+!tee/protocol.py
+!tee/guest.py
+!tee/workload.py
+!tee/mock_quote.py
+!tee/experiment.json
+!tee/build-assets.sha256
+!tee/fixture
+!tee/fixture/genesis.json
+!tee/fixture/foundry.toml
+!tee/fixture/test
+!tee/fixture/test/PinnedState.t.sol

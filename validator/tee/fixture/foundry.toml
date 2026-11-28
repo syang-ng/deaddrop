@@ -1,0 +1,4 @@
+[profile.default]
+test = "test"
+evm_version = "shanghai"
+offline = true

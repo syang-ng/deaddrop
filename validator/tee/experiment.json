@@ -1,0 +1,27 @@
+{
+  "fixture": "anvil-pinned-storage-v1",
+  "file_sha256": {
+    "genesis.json": "b6e4e78fc9095f7a3c308d92444928004df1aa223ee2ca57ebe11d537a3823fe",
+    "foundry.toml": "02c440c5875eeaceff5a0bd104774f45b539a35bb35edfc1be0610150ac9f028",
+    "test/PinnedState.t.sol": "7d73737cf269c63262679fe4322dbd2de836d4e389a513aee4bdfb75083676ce"
+  },
+  "blockchain": {
+    "chain_id": 31337,
+    "block_number": 1,
+    "block_hash": "0xf7dd6b13587bfffb833bb7aef6c81bd3639013d74f04d6c0a59bd53176410c5c",
+    "state_root": "0xd520b0467c70230dc1eae674295ca0925f9e9d33ec4aad99b07e2ae1d6b09384",
+    "target": "0x1000000000000000000000000000000000000001",
+    "storage_slot": "0x0"
+  },
+  "hardfork": "shanghai",
+  "mine_timestamps": [
+    1700000012,
+    1700000024
+  ],
+  "benchmark": {
+    "warmups": 2,
+    "runs": 10
+  },
+  "test_suite": "test/PinnedState.t.sol:PinnedState",
+  "test_name": "testPinnedValue()"
+}
